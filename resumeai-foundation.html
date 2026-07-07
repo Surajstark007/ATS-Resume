@@ -28,14 +28,42 @@ button{font-family:inherit;cursor:pointer;}
 input,textarea{font-family:inherit;}
 :focus-visible{outline:2px solid var(--signal-400);outline-offset:2px;}
 
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:1px solid var(--line);}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:1px solid var(--line);position:relative;}
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:18px;}
 .steps{display:flex;gap:6px;align-items:center;font-family:var(--font-mono);font-size:12px;color:var(--text-lo);}
 .steps .step{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;}
 .steps .step.active{background:var(--signal-100);color:#1d3aa8;}
 html[data-theme="dark"] .steps .step.active{background:rgba(63,99,236,.16);color:#9db2ff;}
 .steps .step.done{color:var(--emerald-500);}
+.topbar-actions{display:flex;align-items:center;gap:8px;}
 .icon-btn{background:var(--bg-sunken);border:1px solid var(--line);color:var(--text-hi);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{border-color:var(--signal-400);}
+
+/* API Key banner */
+#apiKeyBanner{
+  display:none;
+  padding:10px 26px;
+  background:var(--bg-raised);
+  border-bottom:1px solid var(--line);
+  align-items:center;
+  gap:10px;
+}
+#apiKeyBanner.visible{display:flex;}
+#apiKeyBanner label{font-size:12.5px;color:var(--text-lo);white-space:nowrap;}
+#apiKeyInput{
+  flex:1;background:var(--bg-sunken);border:1px solid var(--line);border-radius:8px;
+  padding:7px 11px;color:var(--text-hi);font-size:13px;font-family:var(--font-mono);
+}
+#apiKeyInput:focus{outline:none;border-color:var(--signal-500);}
+.api-key-status{font-size:11.5px;font-family:var(--font-mono);white-space:nowrap;}
+.api-key-status.set{color:var(--emerald-500);}
+.api-key-status.unset{color:var(--amber-500);}
+.key-dot{
+  width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;
+  background:var(--amber-500);
+}
+#apiKeyToggle.has-key .key-dot{background:var(--emerald-500);}
+#apiKeyToggle{position:relative;padding:0 8px;width:auto;gap:4px;font-size:12px;font-family:var(--font-mono);}
 
 .layout{display:grid;grid-template-columns:460px 1fr;min-height:calc(100vh - 61px);}
 .panel-input{border-right:1px solid var(--line);padding:26px 28px 60px;overflow-y:auto;}
@@ -145,8 +173,23 @@ html[data-theme="dark"] .badge-optimized{background:rgba(31,169,123,.16);color:#
     <span class="step" data-step="2">2 · Job description</span>
     <span class="step" data-step="3">3 · Review &amp; export</span>
   </div>
-  <button class="icon-btn" id="themeToggle" aria-label="Toggle theme"></button>
+  <div class="topbar-actions">
+    <button class="icon-btn" id="apiKeyToggle" aria-label="Set API key" title="Set Anthropic API key">
+      <span class="key-dot"></span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="5"/><path d="M12 11.7V8l3-3 1.5 1.5L15 8l1.5 1.5L15 11"/></svg>
+    </button>
+    <button class="icon-btn" id="themeToggle" aria-label="Toggle theme"></button>
+  </div>
 </header>
+
+<!-- API Key Banner -->
+<div id="apiKeyBanner">
+  <label for="apiKeyInput">Anthropic API key</label>
+  <input type="password" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+  <button class="btn btn-ghost btn-sm" id="saveApiKeyBtn">Save</button>
+  <span class="api-key-status unset" id="apiKeyStatus">Not set</span>
+  <span style="font-size:11px;color:var(--text-lo);margin-left:4px;">— stored in your browser only</span>
+</div>
 
 <div class="layout">
   <div class="panel-input">
@@ -206,34 +249,76 @@ html[data-theme="dark"] .badge-optimized{background:rgba(31,169,123,.16);color:#
 <script>
 /* ===================== State ===================== */
 const STORAGE_KEY = 'resumeai:foundation:v1';
+const API_KEY_STORAGE = 'resumeai:apikey';
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function blankResume(){
   return { personalInfo:{fullName:'',email:'',phone:'',location:'',linkedin:'',portfolio:''}, summary:'', experience:[], education:[], skills:[], certifications:[], projects:[] };
 }
 const state = {
   theme:'dark',
-  resume: null,          // null until parsed
-  originalResume: null,  // snapshot before optimization
+  resume: null,
+  originalResume: null,
   usingOptimized:false,
   jobDescription:'',
   ats:null,
   fileName:null
 };
 
-/* ===================== Storage ===================== */
-async function saveState(){
+/* ===================== API Key Management ===================== */
+function getApiKey(){ return localStorage.getItem(API_KEY_STORAGE) || ''; }
+function setApiKey(key){ localStorage.setItem(API_KEY_STORAGE, key.trim()); updateApiKeyUI(); }
+
+function updateApiKeyUI(){
+  const key = getApiKey();
+  const toggle = document.getElementById('apiKeyToggle');
+  const status = document.getElementById('apiKeyStatus');
+  const input = document.getElementById('apiKeyInput');
+  if(key){
+    toggle.classList.add('has-key');
+    status.textContent = 'Set ✓';
+    status.className = 'api-key-status set';
+    input.value = key;
+  } else {
+    toggle.classList.remove('has-key');
+    status.textContent = 'Not set';
+    status.className = 'api-key-status unset';
+    input.value = '';
+  }
+}
+
+document.getElementById('apiKeyToggle').addEventListener('click', ()=>{
+  const banner = document.getElementById('apiKeyBanner');
+  banner.classList.toggle('visible');
+  if(banner.classList.contains('visible')) document.getElementById('apiKeyInput').focus();
+});
+
+document.getElementById('saveApiKeyBtn').addEventListener('click', ()=>{
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if(!val){ toast('Paste your Anthropic API key (starts with sk-ant-…)', 'error'); return; }
+  setApiKey(val);
+  document.getElementById('apiKeyBanner').classList.remove('visible');
+  toast('API key saved in your browser.', 'success');
+});
+
+document.getElementById('apiKeyInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter') document.getElementById('saveApiKeyBtn').click();
+  if(e.key==='Escape') document.getElementById('apiKeyBanner').classList.remove('visible');
+});
+
+/* ===================== Storage (localStorage) ===================== */
+function saveState(){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
       theme:state.theme, resume:state.resume, originalResume:state.originalResume,
       usingOptimized:state.usingOptimized, jobDescription:state.jobDescription, ats:state.ats, fileName:state.fileName
     }));
   }catch(e){ console.error(e); }
 }
-async function loadState(){
+function loadState(){
   try{
-    const res = await window.storage.get(STORAGE_KEY);
-    if(res && res.value){
-      const d = JSON.parse(res.value);
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if(stored){
+      const d = JSON.parse(stored);
       Object.assign(state, d);
     }
   }catch(e){ /* nothing saved yet */ }
@@ -263,9 +348,27 @@ document.getElementById('themeToggle').addEventListener('click', ()=>{
 
 /* ===================== Claude API ===================== */
 async function callClaude(userContent){
-  const body = { model:'claude-sonnet-4-6', max_tokens:1000, messages:[{role:'user', content:userContent}] };
-  const res = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  if(!res.ok) throw new Error('AI request failed ('+res.status+')');
+  const apiKey = getApiKey();
+  if(!apiKey){
+    document.getElementById('apiKeyBanner').classList.add('visible');
+    document.getElementById('apiKeyInput').focus();
+    throw new Error('API key required — enter it above.');
+  }
+  const body = { model:'claude-sonnet-4-6', max_tokens:2000, messages:[{role:'user', content:userContent}] };
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error('AI request failed ('+ res.status +'): ' + (err.error?.message || res.statusText));
+  }
   const data = await res.json();
   return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
 }
@@ -402,7 +505,8 @@ async function parseWithAI(userContent, sourceLabel){
     toast('Resume parsed — check the preview on the right for accuracy.', 'success');
   }catch(err){
     console.error(err);
-    toast('Could not parse that. Try the other format, or paste plain text instead.', 'error');
+    if(err.message && err.message.includes('API key')) toast(err.message, 'error');
+    else toast('Could not parse that. Try the other format, or paste plain text instead.', 'error');
   }finally{
     setUploadBusy(false);
   }
@@ -473,7 +577,6 @@ document.getElementById('updateResumeBtn').addEventListener('click', async ()=>{
   try{
     if(!state.originalResume) state.originalResume = JSON.parse(JSON.stringify(state.resume));
 
-    // 1) ATS analysis
     const resumeForAI = {
       summary: state.resume.summary,
       skills: state.resume.skills,
@@ -499,14 +602,12 @@ JOB DESCRIPTION: ${jd.slice(0,4000)}`;
       suggestions: analysis.suggestions||[]
     };
 
-    // 2) Rewrite summary + skills
     const p1 = `Rewrite ONLY the professional summary and reorder/rephrase the skills list to align wording with this job description, for ATS keyword matching. Do NOT invent any skill, employer, degree or certification not already present. Return ONLY strict JSON: {"summary":"","skills":[""]}.
 CURRENT SUMMARY: ${state.resume.summary}
 CURRENT SKILLS: ${JSON.stringify(state.resume.skills)}
 JOB DESCRIPTION: ${jd.slice(0,3000)}`;
     const parsed1 = extractJson(await callClaude(p1));
 
-    // 3) Rewrite experience bullets (if any)
     let parsed2 = { experience: [] };
     if(state.resume.experience.length){
       const expForAI = state.resume.experience.map(e=>({id:e.id,title:e.title,company:e.company,bullets:e.bullets}));
@@ -527,7 +628,8 @@ JOB DESCRIPTION: ${jd.slice(0,3000)}`;
     toast('Resume updated for this role.', 'success');
   }catch(err){
     console.error(err);
-    toast('Something went wrong during analysis — please try again.', 'error');
+    if(err.message && err.message.includes('API key')) toast(err.message, 'error');
+    else toast('Something went wrong during analysis — please try again.', 'error');
   }finally{
     btn.textContent = orig; btn.disabled = false;
   }
@@ -560,14 +662,19 @@ document.getElementById('revertBtn').addEventListener('click', ()=>{
 document.getElementById('exportPdfBtn').addEventListener('click', ()=>window.print());
 
 /* ===================== Init ===================== */
-async function init(){
-  await loadState();
+function init(){
+  loadState();
+  updateApiKeyUI();
   applyTheme();
   renderResumeStatus();
   renderPreview();
   renderResult();
   refreshSteps();
   document.getElementById('jdText').value = state.jobDescription || '';
+  if(!getApiKey()){
+    // Show API key banner on first visit
+    setTimeout(()=>document.getElementById('apiKeyBanner').classList.add('visible'), 400);
+  }
 }
 init();
 </script>
