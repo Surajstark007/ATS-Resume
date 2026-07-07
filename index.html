@@ -1,13 +1,683 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ResumeAI — ATS-optimized resumes</title>
-    <meta name="description" content="Upload your resume, paste a job description, and get an AI-powered ATS score and rewrite in seconds." />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResumeAI — Foundation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js" defer></script>
+<style>
+:root{
+  --ink-950:#0B0E14; --ink-900:#11151d; --ink-850:#141a24;
+  --paper-50:#F7F8FA; --paper-100:#EEF0F4;
+  --line-dark:rgba(148,163,184,0.14); --line-light:rgba(23,26,33,0.10);
+  --signal-600:#3457D5; --signal-500:#3F63EC; --signal-400:#6C8CFF; --signal-100:#E5EAFC;
+  --amber-500:#E8A33D; --amber-100:#FCEED9;
+  --emerald-500:#1FA97B; --emerald-100:#DCF4EA;
+  --crimson-500:#E5484D;
+  --font-display:'Space Grotesk',system-ui,sans-serif;
+  --font-body:'Inter',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+html[data-theme="dark"]{ --bg:var(--ink-950); --bg-raised:var(--ink-900); --bg-sunken:#080a0f; --card:var(--ink-850); --line:var(--line-dark); --text-hi:#ECEFF5; --text-lo:#93A0B4; }
+html[data-theme="light"]{ --bg:var(--paper-50); --bg-raised:#fff; --bg-sunken:var(--paper-100); --card:#fff; --line:var(--line-light); --text-hi:#171A21; --text-lo:#5B6472; }
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text-hi);font-family:var(--font-body);}
+button{font-family:inherit;cursor:pointer;}
+input,textarea{font-family:inherit;}
+:focus-visible{outline:2px solid var(--signal-400);outline-offset:2px;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:1px solid var(--line);position:relative;}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:18px;}
+.steps{display:flex;gap:6px;align-items:center;font-family:var(--font-mono);font-size:12px;color:var(--text-lo);}
+.steps .step{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;}
+.steps .step.active{background:var(--signal-100);color:#1d3aa8;}
+html[data-theme="dark"] .steps .step.active{background:rgba(63,99,236,.16);color:#9db2ff;}
+.steps .step.done{color:var(--emerald-500);}
+.topbar-actions{display:flex;align-items:center;gap:8px;}
+.icon-btn{background:var(--bg-sunken);border:1px solid var(--line);color:var(--text-hi);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{border-color:var(--signal-400);}
+
+/* API Key banner */
+#apiKeyBanner{
+  display:none;
+  padding:10px 26px;
+  background:var(--bg-raised);
+  border-bottom:1px solid var(--line);
+  align-items:center;
+  gap:10px;
+}
+#apiKeyBanner.visible{display:flex;}
+#apiKeyBanner label{font-size:12.5px;color:var(--text-lo);white-space:nowrap;}
+#apiKeyInput{
+  flex:1;background:var(--bg-sunken);border:1px solid var(--line);border-radius:8px;
+  padding:7px 11px;color:var(--text-hi);font-size:13px;font-family:var(--font-mono);
+}
+#apiKeyInput:focus{outline:none;border-color:var(--signal-500);}
+.api-key-status{font-size:11.5px;font-family:var(--font-mono);white-space:nowrap;}
+.api-key-status.set{color:var(--emerald-500);}
+.api-key-status.unset{color:var(--amber-500);}
+.key-dot{
+  width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;
+  background:var(--amber-500);
+}
+#apiKeyToggle.has-key .key-dot{background:var(--emerald-500);}
+#apiKeyToggle{position:relative;padding:0 8px;width:auto;gap:4px;font-size:12px;font-family:var(--font-mono);}
+
+.layout{display:grid;grid-template-columns:460px 1fr;min-height:calc(100vh - 61px);}
+.panel-input{border-right:1px solid var(--line);padding:26px 28px 60px;overflow-y:auto;}
+.panel-preview{background:var(--bg-sunken);padding:30px;display:flex;flex-direction:column;align-items:center;overflow-y:auto;}
+
+.block{margin-bottom:22px;}
+.block-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.block-num{width:22px;height:22px;border-radius:6px;background:var(--signal-600);color:#fff;font-family:var(--font-mono);font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;}
+.block-num.gray{background:var(--bg-sunken);color:var(--text-lo);border:1px solid var(--line);}
+.block h3{font-family:var(--font-display);font-size:15px;margin:0;}
+.block p.hint{font-size:12.5px;color:var(--text-lo);margin:0 0 12px;line-height:1.5;}
+
+.upload-zone{border:1.5px dashed var(--line);border-radius:12px;padding:26px;text-align:center;}
+.upload-zone.drag{border-color:var(--signal-400);background:var(--signal-100);}
+.upload-zone p{margin:8px 0 4px;font-size:13.5px;color:var(--text-lo);}
+.upload-zone small{color:var(--text-lo);font-size:11.5px;}
+.divider-or{display:flex;align-items:center;gap:12px;color:var(--text-lo);font-size:11px;margin:14px 0;text-transform:uppercase;letter-spacing:.08em;}
+.divider-or::before,.divider-or::after{content:'';flex:1;height:1px;background:var(--line);}
+textarea, input[type=text], input[type=url]{width:100%;background:var(--bg-sunken);border:1px solid var(--line);border-radius:8px;padding:10px 11px;color:var(--text-hi);font-size:13px;resize:vertical;}
+textarea:focus, input:focus{border-color:var(--signal-500);}
+#pasteResumeText{min-height:110px;}
+#jdText{min-height:170px;}
+
+.resume-status{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;}
+.resume-status .dot{width:8px;height:8px;border-radius:50%;background:var(--emerald-500);flex:none;}
+.resume-status .clear{margin-left:auto;background:transparent;border:none;color:var(--text-lo);font-size:12px;font-weight:600;}
+.resume-status .clear:hover{color:var(--crimson-500);}
+
+.jd-url-row{display:flex;gap:8px;margin-bottom:10px;}
+.jd-url-row input{flex:1;}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:8px;font-weight:600;font-size:13.5px;padding:10px 16px;border:1px solid transparent;white-space:nowrap;}
+.btn-primary{background:var(--signal-600);color:#fff;}
+.btn-primary:hover{background:var(--signal-500);}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--line);color:var(--text-hi);}
+.btn-ghost:hover{border-color:var(--signal-400);}
+.btn-sm{padding:7px 12px;font-size:12.5px;}
+.btn-block{width:100%;justify-content:center;}
+
+.cta-row{position:sticky;bottom:0;background:linear-gradient(to top, var(--bg) 60%, transparent);padding:16px 0 4px;}
+
+.result-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-top:14px;}
+.result-head{display:flex;align-items:center;justify-content:between;gap:12px;margin-bottom:10px;}
+.score-badge{display:flex;align-items:center;gap:10px;}
+.score-num{font-family:var(--font-mono);font-weight:700;font-size:26px;}
+.score-num.good{color:var(--emerald-500);}
+.score-num.mid{color:var(--amber-500);}
+.score-num.low{color:var(--crimson-500);}
+.score-label{font-size:11.5px;color:var(--text-lo);text-transform:uppercase;letter-spacing:.06em;}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.chip{font-family:var(--font-mono);font-size:11px;padding:4px 9px;border-radius:6px;}
+.chip.match{background:var(--emerald-100);color:#0d6b4d;}
+html[data-theme="dark"] .chip.match{background:rgba(31,169,123,.16);color:#5fdba7;}
+.chip.missing{background:var(--amber-100);color:#8a5a12;}
+html[data-theme="dark"] .chip.missing{background:rgba(232,163,61,.14);color:#f0b969;}
+.suggest-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;}
+.suggest-list li{font-size:12.5px;line-height:1.5;display:flex;gap:8px;}
+.suggest-list li .n{font-family:var(--font-mono);color:var(--signal-400);font-weight:700;flex:none;}
+
+.preview-toolbar{display:flex;gap:10px;margin-bottom:16px;width:100%;max-width:660px;justify-content:flex-end;}
+.resume-paper{background:#fff;color:#1a1c22;width:100%;max-width:660px;min-height:840px;padding:50px 54px;box-shadow:0 20px 50px rgba(0,0,0,.35);font-family:'Inter',Arial,sans-serif;font-size:12.5px;line-height:1.55;}
+.rp-name{font-size:22px;font-weight:700;margin:0 0 4px;}
+.rp-contact{font-size:11px;color:#4a4f5c;margin-bottom:16px;}
+.rp-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;border-bottom:1.5px solid #1a1c22;padding-bottom:3px;margin:16px 0 8px;}
+.rp-section-title:first-of-type{margin-top:0;}
+.rp-summary{margin:0;color:#2a2d35;}
+.rp-entry{margin-bottom:10px;}
+.rp-entry-head{display:flex;justify-content:space-between;font-weight:600;}
+.rp-entry-sub{display:flex;justify-content:space-between;font-size:11.5px;color:#4a4f5c;font-style:italic;margin-bottom:3px;}
+.rp-entry ul{margin:3px 0 0;padding-left:16px;}
+.rp-entry li{margin-bottom:2px;}
+.rp-skills{display:flex;flex-wrap:wrap;gap:5px 12px;}
+.rp-empty{color:#9aa0ab;font-size:12px;font-style:italic;}
+.badge-optimized{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;background:var(--emerald-100);color:#0d6b4d;padding:4px 10px;border-radius:999px;margin-bottom:10px;}
+html[data-theme="dark"] .badge-optimized{background:rgba(31,169,123,.16);color:#5fdba7;}
+
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.toast-wrap{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:200;}
+.toast{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--signal-500);padding:12px 16px;border-radius:8px;font-size:13px;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.toast.error{border-left-color:var(--crimson-500);}
+.toast.success{border-left-color:var(--emerald-500);}
+.text-lo{color:var(--text-lo);}
+
+@media (max-width:880px){
+  .layout{grid-template-columns:1fr;}
+  .panel-input{border-right:none;border-bottom:1px solid var(--line);}
+  .steps{display:none;}
+}
+@media print{
+  body *{visibility:hidden;}
+  #print-root, #print-root *{visibility:visible;}
+  #print-root{position:absolute;top:0;left:0;width:100%;}
+  .resume-paper{box-shadow:none;max-width:100%;padding:0;}
+  @page{margin:16mm;}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 26 26" fill="none"><rect width="26" height="26" rx="6" fill="#3457D5"/><path d="M7 13.5L11 17.5L19 8.5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    ResumeAI
+  </div>
+  <div class="steps" id="stepsIndicator">
+    <span class="step" data-step="1">1 · Resume</span>
+    <span class="step" data-step="2">2 · Job description</span>
+    <span class="step" data-step="3">3 · Review &amp; export</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="icon-btn" id="apiKeyToggle" aria-label="Set API key" title="Set Anthropic API key">
+      <span class="key-dot"></span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="5"/><path d="M12 11.7V8l3-3 1.5 1.5L15 8l1.5 1.5L15 11"/></svg>
+    </button>
+    <button class="icon-btn" id="themeToggle" aria-label="Toggle theme"></button>
+  </div>
+</header>
+
+<!-- API Key Banner -->
+<div id="apiKeyBanner">
+  <label for="apiKeyInput">Anthropic API key</label>
+  <input type="password" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+  <button class="btn btn-ghost btn-sm" id="saveApiKeyBtn">Save</button>
+  <span class="api-key-status unset" id="apiKeyStatus">Not set</span>
+  <span style="font-size:11px;color:var(--text-lo);margin-left:4px;">— stored in your browser only</span>
+</div>
+
+<div class="layout">
+  <div class="panel-input">
+
+    <div class="block">
+      <div class="block-head"><span class="block-num" id="numBadge1">1</span><h3>Upload your resume</h3></div>
+      <p class="hint">We only extract what's already on the page — nothing is invented. PDF or DOCX, or paste plain text.</p>
+
+      <div id="uploadArea">
+        <div class="upload-zone" id="uploadZone">
+          <p><strong>Drop a PDF or DOCX here</strong></p>
+          <small>or</small>
+          <div style="margin-top:10px;">
+            <button class="btn btn-ghost btn-sm" id="chooseFileBtn">Choose file</button>
+            <input type="file" id="fileInput" accept=".pdf,.docx" style="display:none;">
+          </div>
+        </div>
+        <div class="divider-or">or paste resume text</div>
+        <textarea id="pasteResumeText" placeholder="Paste your resume's plain text here, then click Parse below."></textarea>
+        <button class="btn btn-ghost btn-block" id="parseTextBtn" style="margin-top:10px;">Parse pasted text</button>
+      </div>
+
+      <div id="resumeStatus" style="display:none;"></div>
+    </div>
+
+    <div class="block">
+      <div class="block-head"><span class="block-num gray" id="numBadge2">2</span><h3>Target job description</h3></div>
+      <p class="hint">Paste the job post, or try fetching by URL (many job sites block automated fetches — paste if that happens).</p>
+      <div class="jd-url-row">
+        <input type="url" id="jdUrl" placeholder="https://company.com/careers/role">
+        <button class="btn btn-ghost btn-sm" id="fetchJdBtn">Fetch</button>
+      </div>
+      <textarea id="jdText" placeholder="Paste the full job description here..."></textarea>
+    </div>
+
+    <div class="cta-row">
+      <button class="btn btn-primary btn-block" id="updateResumeBtn" disabled>Update my resume for this job</button>
+    </div>
+
+    <div id="resultArea"></div>
+  </div>
+
+  <div class="panel-preview">
+    <div class="preview-toolbar">
+      <button class="btn btn-ghost btn-sm" id="revertBtn" style="display:none;">Revert to original</button>
+      <button class="btn btn-primary btn-sm" id="exportPdfBtn">Export as PDF</button>
+    </div>
+    <div id="print-root">
+      <div id="optimizedBadgeWrap"></div>
+      <div class="resume-paper" id="resumePaper"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ===================== State ===================== */
+const STORAGE_KEY = 'resumeai:foundation:v1';
+const API_KEY_STORAGE = 'resumeai:apikey';
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function blankResume(){
+  return { personalInfo:{fullName:'',email:'',phone:'',location:'',linkedin:'',portfolio:''}, summary:'', experience:[], education:[], skills:[], certifications:[], projects:[] };
+}
+const state = {
+  theme:'dark',
+  resume: null,
+  originalResume: null,
+  usingOptimized:false,
+  jobDescription:'',
+  ats:null,
+  fileName:null
+};
+
+/* ===================== API Key Management ===================== */
+function getApiKey(){ return localStorage.getItem(API_KEY_STORAGE) || ''; }
+function setApiKey(key){ localStorage.setItem(API_KEY_STORAGE, key.trim()); updateApiKeyUI(); }
+
+function updateApiKeyUI(){
+  const key = getApiKey();
+  const toggle = document.getElementById('apiKeyToggle');
+  const status = document.getElementById('apiKeyStatus');
+  const input = document.getElementById('apiKeyInput');
+  if(key){
+    toggle.classList.add('has-key');
+    status.textContent = 'Set ✓';
+    status.className = 'api-key-status set';
+    input.value = key;
+  } else {
+    toggle.classList.remove('has-key');
+    status.textContent = 'Not set';
+    status.className = 'api-key-status unset';
+    input.value = '';
+  }
+}
+
+document.getElementById('apiKeyToggle').addEventListener('click', ()=>{
+  const banner = document.getElementById('apiKeyBanner');
+  banner.classList.toggle('visible');
+  if(banner.classList.contains('visible')) document.getElementById('apiKeyInput').focus();
+});
+
+document.getElementById('saveApiKeyBtn').addEventListener('click', ()=>{
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if(!val){ toast('Paste your Anthropic API key (starts with sk-ant-…)', 'error'); return; }
+  setApiKey(val);
+  document.getElementById('apiKeyBanner').classList.remove('visible');
+  toast('API key saved in your browser.', 'success');
+});
+
+document.getElementById('apiKeyInput').addEventListener('keydown', e=>{
+  if(e.key==='Enter') document.getElementById('saveApiKeyBtn').click();
+  if(e.key==='Escape') document.getElementById('apiKeyBanner').classList.remove('visible');
+});
+
+/* ===================== Storage (localStorage) ===================== */
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      theme:state.theme, resume:state.resume, originalResume:state.originalResume,
+      usingOptimized:state.usingOptimized, jobDescription:state.jobDescription, ats:state.ats, fileName:state.fileName
+    }));
+  }catch(e){ console.error(e); }
+}
+function loadState(){
+  try{
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if(stored){
+      const d = JSON.parse(stored);
+      Object.assign(state, d);
+    }
+  }catch(e){ /* nothing saved yet */ }
+}
+
+/* ===================== Toast ===================== */
+function toast(msg,kind){
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast'+(kind?' '+kind:'');
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(()=>t.remove(), 4200);
+}
+
+/* ===================== Theme ===================== */
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', state.theme);
+  const btn = document.getElementById('themeToggle');
+  btn.innerHTML = state.theme==='dark'
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8L6 18M18 6l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+}
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  state.theme = state.theme==='dark'?'light':'dark'; applyTheme(); saveState();
+});
+
+/* ===================== Claude API ===================== */
+async function callClaude(userContent){
+  const apiKey = getApiKey();
+  if(!apiKey){
+    document.getElementById('apiKeyBanner').classList.add('visible');
+    document.getElementById('apiKeyInput').focus();
+    throw new Error('API key required — enter it above.');
+  }
+  const body = { model:'claude-sonnet-4-6', max_tokens:2000, messages:[{role:'user', content:userContent}] };
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error('AI request failed ('+ res.status +'): ' + (err.error?.message || res.statusText));
+  }
+  const data = await res.json();
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+}
+function extractJson(raw){
+  let cleaned = raw.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  const first = cleaned.indexOf('{'), last = cleaned.lastIndexOf('}');
+  if(first>=0 && last>first) cleaned = cleaned.slice(first,last+1);
+  return JSON.parse(cleaned);
+}
+function escHtml(s){ return (s||'').toString().replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* ===================== Steps indicator ===================== */
+function refreshSteps(){
+  const s1 = state.resume ? 'done' : 'active';
+  const s2 = state.resume ? (state.jobDescription ? 'done' : 'active') : '';
+  const s3 = state.ats ? 'active' : '';
+  document.querySelectorAll('#stepsIndicator .step').forEach(el=>{
+    el.className = 'step';
+    if(el.dataset.step==='1') el.classList.add(s1);
+    if(el.dataset.step==='2' && s2) el.classList.add(s2);
+    if(el.dataset.step==='3' && s3) el.classList.add(s3);
+  });
+  document.getElementById('numBadge1').className = 'block-num' + (state.resume ? '' : ' gray');
+  document.getElementById('numBadge2').className = 'block-num' + (state.resume ? '' : ' gray');
+  document.getElementById('updateResumeBtn').disabled = !(state.resume && state.jobDescription && state.jobDescription.trim().length>40);
+}
+
+/* ===================== Resume rendering ===================== */
+function resumeToHtml(r){
+  if(!r) return '<p class="rp-empty">Upload or paste your resume to see it appear here.</p>';
+  const p = r.personalInfo;
+  const contactBits = [p.email,p.phone,p.location,p.linkedin,p.portfolio].filter(Boolean);
+  let html = '';
+  html += `<div class="rp-name">${escHtml(p.fullName)||'Your Name'}</div>`;
+  html += `<div class="rp-contact">${contactBits.length?escHtml(contactBits.join('  •  ')):'email • phone • location'}</div>`;
+  if(r.summary && r.summary.trim()) html += `<div class="rp-section-title">Professional Summary</div><p class="rp-summary">${escHtml(r.summary)}</p>`;
+  if(r.experience.length){
+    html += `<div class="rp-section-title">Work Experience</div>`;
+    r.experience.forEach(exp=>{
+      html += `<div class="rp-entry">
+        <div class="rp-entry-head"><span>${escHtml(exp.title)||'Title'}${exp.company?' — '+escHtml(exp.company):''}</span><span>${escHtml(exp.startDate)} – ${exp.current?'Present':escHtml(exp.endDate)}</span></div>
+        <div class="rp-entry-sub"><span>${escHtml(exp.location)}</span></div>
+        <ul>${(exp.bullets||[]).filter(b=>b && b.trim()).map(b=>`<li>${escHtml(b)}</li>`).join('')}</ul>
+      </div>`;
+    });
+  }
+  if(r.education.length){
+    html += `<div class="rp-section-title">Education</div>`;
+    r.education.forEach(ed=>{
+      html += `<div class="rp-entry">
+        <div class="rp-entry-head"><span>${escHtml(ed.degree)}${ed.field?', '+escHtml(ed.field):''}</span><span>${escHtml(ed.startDate)} – ${escHtml(ed.endDate)}</span></div>
+        <div class="rp-entry-sub"><span>${escHtml(ed.school)}${ed.location?', '+escHtml(ed.location):''}</span></div>
+      </div>`;
+    });
+  }
+  if(r.skills.length) html += `<div class="rp-section-title">Skills</div><div class="rp-skills">${r.skills.map(s=>escHtml(s)).join(' &nbsp;·&nbsp; ')}</div>`;
+  if(r.certifications.length){
+    html += `<div class="rp-section-title">Certifications</div>`;
+    r.certifications.forEach(c=>{ html += `<div class="rp-entry"><div class="rp-entry-head"><span>${escHtml(c.name)}</span><span>${escHtml(c.date)}</span></div><div class="rp-entry-sub"><span>${escHtml(c.issuer)}</span></div></div>`; });
+  }
+  if(r.projects.length){
+    html += `<div class="rp-section-title">Projects</div>`;
+    r.projects.forEach(pr=>{ html += `<div class="rp-entry"><div class="rp-entry-head"><span>${escHtml(pr.name)}</span><span>${escHtml(pr.tech)}</span></div><p style="margin:2px 0 0;">${escHtml(pr.description)}</p></div>`; });
+  }
+  return html;
+}
+function renderPreview(){
+  document.getElementById('resumePaper').innerHTML = resumeToHtml(state.resume);
+  document.getElementById('optimizedBadgeWrap').innerHTML = state.usingOptimized ? '<div class="badge-optimized">✓ Optimized for target role</div>' : '';
+  document.getElementById('revertBtn').style.display = state.usingOptimized ? 'inline-flex' : 'none';
+}
+function renderResumeStatus(){
+  const box = document.getElementById('resumeStatus');
+  const area = document.getElementById('uploadArea');
+  if(state.resume){
+    box.style.display = 'flex'; area.style.display = 'none';
+    const name = state.resume.personalInfo.fullName || state.fileName || 'Resume';
+    box.innerHTML = `<span class="dot"></span><span>${escHtml(name)} parsed and loaded</span><button class="clear" id="clearResumeBtn">Start over</button>`;
+    document.getElementById('clearResumeBtn').addEventListener('click', ()=>{
+      state.resume = null; state.originalResume = null; state.usingOptimized=false; state.fileName=null;
+      renderResumeStatus(); renderPreview(); refreshSteps(); saveState();
+    });
+  } else {
+    box.style.display = 'none'; area.style.display = 'block';
+  }
+}
+
+/* ===================== Upload & parse ===================== */
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+document.getElementById('chooseFileBtn').addEventListener('click', ()=>fileInput.click());
+['dragenter','dragover'].forEach(evt=>uploadZone.addEventListener(evt,e=>{e.preventDefault();uploadZone.classList.add('drag');}));
+['dragleave','drop'].forEach(evt=>uploadZone.addEventListener(evt,e=>{e.preventDefault();uploadZone.classList.remove('drag');}));
+uploadZone.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) handleResumeFile(f); });
+fileInput.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) handleResumeFile(f); });
+
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+const RESUME_SCHEMA_PROMPT = `Extract this resume's content into strict JSON matching exactly this shape (no markdown, no commentary, JSON only):
+{"personalInfo":{"fullName":"","email":"","phone":"","location":"","linkedin":"","portfolio":""},
+"summary":"",
+"experience":[{"company":"","title":"","location":"","startDate":"","endDate":"","current":false,"bullets":[""]}],
+"education":[{"school":"","degree":"","field":"","location":"","startDate":"","endDate":""}],
+"skills":[""],
+"certifications":[{"name":"","issuer":"","date":""}],
+"projects":[{"name":"","description":"","tech":"","link":""}]}
+Rules: Only include information explicitly present in the source text. Never invent employers, dates, degrees, certifications, or skills. If a field is not present, leave it as an empty string or empty array. Keep bullet text close to the original wording (light cleanup only, no fabrication). Return ONLY the JSON object.`;
+
+async function parseWithAI(userContent, sourceLabel){
+  setUploadBusy(true, 'Reading your resume…');
+  try{
+    const raw = await callClaude(userContent);
+    const parsed = extractJson(raw);
+    const merged = blankResume();
+    merged.personalInfo = Object.assign(merged.personalInfo, parsed.personalInfo||{});
+    merged.summary = parsed.summary || '';
+    merged.experience = (parsed.experience||[]).map(e=>({id:uid(),company:e.company||'',title:e.title||'',location:e.location||'',startDate:e.startDate||'',endDate:e.endDate||'',current:!!e.current,bullets:(e.bullets&&e.bullets.length)?e.bullets:[]}));
+    merged.education = (parsed.education||[]).map(e=>({id:uid(),school:e.school||'',degree:e.degree||'',field:e.field||'',location:e.location||'',startDate:e.startDate||'',endDate:e.endDate||''}));
+    merged.skills = parsed.skills||[];
+    merged.certifications = (parsed.certifications||[]).map(c=>({id:uid(),name:c.name||'',issuer:c.issuer||'',date:c.date||''}));
+    merged.projects = (parsed.projects||[]).map(pr=>({id:uid(),name:pr.name||'',description:pr.description||'',tech:pr.tech||'',link:pr.link||''}));
+    state.resume = merged;
+    state.originalResume = JSON.parse(JSON.stringify(merged));
+    state.usingOptimized = false;
+    state.fileName = sourceLabel;
+    renderResumeStatus(); renderPreview(); refreshSteps(); saveState();
+    toast('Resume parsed — check the preview on the right for accuracy.', 'success');
+  }catch(err){
+    console.error(err);
+    if(err.message && err.message.includes('API key')) toast(err.message, 'error');
+    else toast('Could not parse that. Try the other format, or paste plain text instead.', 'error');
+  }finally{
+    setUploadBusy(false);
+  }
+}
+function setUploadBusy(val, msg){
+  const p = uploadZone.querySelector('p');
+  if(val){ p.dataset.orig = p.dataset.orig || p.innerHTML; p.innerHTML = msg; }
+  else if(p.dataset.orig){ p.innerHTML = p.dataset.orig; }
+  document.getElementById('parseTextBtn').disabled = val;
+}
+async function handleResumeFile(file){
+  const lower = file.name.toLowerCase();
+  if(lower.endsWith('.pdf')){
+    const b64 = await fileToBase64(file);
+    const content = [
+      { type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 } },
+      { type:'text', text: RESUME_SCHEMA_PROMPT }
+    ];
+    parseWithAI(content, file.name);
+  } else if(lower.endsWith('.docx')){
+    if(typeof mammoth === 'undefined'){ toast('Still loading DOCX support — try again in a second.', 'error'); return; }
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    parseWithAI(result.value + '\n\n' + RESUME_SCHEMA_PROMPT, file.name);
+  } else {
+    toast('Please upload a PDF or DOCX file.', 'error');
+  }
+}
+document.getElementById('parseTextBtn').addEventListener('click', ()=>{
+  const txt = document.getElementById('pasteResumeText').value.trim();
+  if(txt.length < 40){ toast('Paste more of your resume text first.', 'error'); return; }
+  parseWithAI(txt + '\n\n' + RESUME_SCHEMA_PROMPT, 'Pasted resume');
+});
+
+/* ===================== Job description ===================== */
+document.getElementById('jdText').addEventListener('input', e=>{ state.jobDescription = e.target.value; refreshSteps(); saveState(); });
+document.getElementById('fetchJdBtn').addEventListener('click', async ()=>{
+  const url = document.getElementById('jdUrl').value.trim();
+  if(!url){ toast('Enter a job posting URL first.', 'error'); return; }
+  const btn = document.getElementById('fetchJdBtn'); const orig = btn.textContent;
+  btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('fetch failed');
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html,'text/html');
+    doc.querySelectorAll('script,style,nav,header,footer').forEach(n=>n.remove());
+    const text = doc.body ? doc.body.innerText.replace(/\n{3,}/g,'\n\n').trim() : '';
+    if(text.length < 100) throw new Error('too short');
+    document.getElementById('jdText').value = text.slice(0,6000);
+    state.jobDescription = text.slice(0,6000);
+    refreshSteps(); saveState();
+    toast("Pulled the page text in — skim it and trim anything that isn't the job description.", 'success');
+  }catch(err){
+    toast('Could not fetch that page directly (many job sites block this). Please paste the description instead.', 'error');
+  }finally{ btn.textContent = orig; btn.disabled = false; }
+});
+
+/* ===================== Update resume for job ===================== */
+document.getElementById('updateResumeBtn').addEventListener('click', async ()=>{
+  const jd = document.getElementById('jdText').value.trim();
+  if(!state.resume){ toast('Upload or paste your resume first.', 'error'); return; }
+  if(jd.length < 40){ toast('Paste a fuller job description first.', 'error'); return; }
+  state.jobDescription = jd; saveState();
+
+  const btn = document.getElementById('updateResumeBtn');
+  const orig = btn.textContent;
+  btn.innerHTML = '<span class="spinner"></span> Analyzing &amp; rewriting…'; btn.disabled = true;
+  try{
+    if(!state.originalResume) state.originalResume = JSON.parse(JSON.stringify(state.resume));
+
+    const resumeForAI = {
+      summary: state.resume.summary,
+      skills: state.resume.skills,
+      experience: state.resume.experience.map(e=>({title:e.title,company:e.company,bullets:e.bullets})),
+      education: state.resume.education.map(e=>({degree:e.degree,field:e.field})),
+      certifications: state.resume.certifications.map(c=>c.name)
+    };
+    const analysisPrompt = `You are an ATS analysis engine. Compare the RESUME JSON to the JOB DESCRIPTION and return ONLY strict JSON: {"score":0,"matchedKeywords":[""],"missingKeywords":[""],"skillsGap":[""],"suggestions":[""]}
+- score: integer 0-100 ATS match quality.
+- matchedKeywords: important JD keywords already present in resume (max 10).
+- missingKeywords: important JD keywords absent from resume (max 10).
+- skillsGap: broader gaps vs the role (max 6).
+- suggestions: concrete wording/formatting/keyword suggestions only — never suggest inventing experience, employers, education or certifications (max 6, one sentence each).
+RESUME JSON: ${JSON.stringify(resumeForAI)}
+JOB DESCRIPTION: ${jd.slice(0,4000)}`;
+    const rawAnalysis = await callClaude(analysisPrompt);
+    const analysis = extractJson(rawAnalysis);
+    state.ats = {
+      score: Math.max(0, Math.min(100, Math.round(analysis.score||0))),
+      matchedKeywords: analysis.matchedKeywords||[],
+      missingKeywords: analysis.missingKeywords||[],
+      skillsGap: analysis.skillsGap||[],
+      suggestions: analysis.suggestions||[]
+    };
+
+    const p1 = `Rewrite ONLY the professional summary and reorder/rephrase the skills list to align wording with this job description, for ATS keyword matching. Do NOT invent any skill, employer, degree or certification not already present. Return ONLY strict JSON: {"summary":"","skills":[""]}.
+CURRENT SUMMARY: ${state.resume.summary}
+CURRENT SKILLS: ${JSON.stringify(state.resume.skills)}
+JOB DESCRIPTION: ${jd.slice(0,3000)}`;
+    const parsed1 = extractJson(await callClaude(p1));
+
+    let parsed2 = { experience: [] };
+    if(state.resume.experience.length){
+      const expForAI = state.resume.experience.map(e=>({id:e.id,title:e.title,company:e.company,bullets:e.bullets}));
+      const p2 = `Rewrite the bullet points below for stronger ATS-friendly wording, action verbs and professional tone, tailored to the job description. Keep every bullet's underlying fact, employer, title and scope EXACTLY the same — only change wording and keyword alignment. Do not add achievements, numbers or responsibilities not already implied. Keep the same "id" per entry. Return ONLY strict JSON: {"experience":[{"id":"","bullets":[""]}]}.
+EXPERIENCE: ${JSON.stringify(expForAI)}
+JOB DESCRIPTION: ${jd.slice(0,3000)}`;
+      parsed2 = extractJson(await callClaude(p2));
+    }
+
+    state.resume.summary = parsed1.summary || state.resume.summary;
+    state.resume.skills = (parsed1.skills && parsed1.skills.length) ? parsed1.skills : state.resume.skills;
+    (parsed2.experience||[]).forEach(upd=>{
+      const exp = state.resume.experience.find(e=>e.id===upd.id);
+      if(exp && upd.bullets && upd.bullets.length) exp.bullets = upd.bullets;
+    });
+    state.usingOptimized = true;
+    renderPreview(); renderResult(); refreshSteps(); saveState();
+    toast('Resume updated for this role.', 'success');
+  }catch(err){
+    console.error(err);
+    if(err.message && err.message.includes('API key')) toast(err.message, 'error');
+    else toast('Something went wrong during analysis — please try again.', 'error');
+  }finally{
+    btn.textContent = orig; btn.disabled = false;
+  }
+});
+
+function renderResult(){
+  const wrap = document.getElementById('resultArea');
+  if(!state.ats){ wrap.innerHTML=''; return; }
+  const a = state.ats;
+  const scoreClass = a.score>=80?'good':(a.score>=55?'mid':'low');
+  wrap.innerHTML = `
+    <div class="result-card">
+      <div class="result-head">
+        <div class="score-badge"><span class="score-num ${scoreClass}">${a.score}</span><span class="score-label">ATS&nbsp;match</span></div>
+      </div>
+      <div class="chip-row">${a.matchedKeywords.map(k=>`<span class="chip match">${escHtml(k)}</span>`).join('')}${a.missingKeywords.map(k=>`<span class="chip missing">${escHtml(k)}</span>`).join('')}</div>
+      ${a.skillsGap.length?`<p class="hint" style="margin-top:10px;"><strong>Skills gap:</strong> ${a.skillsGap.map(escHtml).join(', ')}</p>`:''}
+      <ul class="suggest-list">${a.suggestions.map((s,i)=>`<li><span class="n">${String(i+1).padStart(2,'0')}</span><span>${escHtml(s)}</span></li>`).join('')}</ul>
+    </div>`;
+}
+
+document.getElementById('revertBtn').addEventListener('click', ()=>{
+  if(state.originalResume){
+    state.resume = JSON.parse(JSON.stringify(state.originalResume));
+    state.usingOptimized = false;
+    renderPreview(); saveState();
+    toast('Reverted to your original wording.');
+  }
+});
+document.getElementById('exportPdfBtn').addEventListener('click', ()=>window.print());
+
+/* ===================== Init ===================== */
+function init(){
+  loadState();
+  updateApiKeyUI();
+  applyTheme();
+  renderResumeStatus();
+  renderPreview();
+  renderResult();
+  refreshSteps();
+  document.getElementById('jdText').value = state.jobDescription || '';
+  if(!getApiKey()){
+    // Show API key banner on first visit
+    setTimeout(()=>document.getElementById('apiKeyBanner').classList.add('visible'), 400);
+  }
+}
+init();
+</script>
+</body>
 </html>
